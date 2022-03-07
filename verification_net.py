@@ -99,7 +99,7 @@ class VerificationNet:
         predictions = np.zeros((data.shape[0],))
         beliefs = np.ones((data.shape[0],))
         for channel in range(no_channels):
-            channel_prediction = self.model.predict(data[:, :, :, [channel]])
+            channel_prediction = self.model.predict(data[:, :, :, channel])
             beliefs = np.multiply(beliefs, np.max(channel_prediction, axis=1))
             predictions += np.argmax(channel_prediction, axis=1) * np.power(10, channel)
 

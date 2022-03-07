@@ -9,9 +9,11 @@ from verification_net import VerificationNet
 
 
 class AutoEncoder():
-    def __init__(self, latent_dim=64, force_learn: bool = False, file_name: str = "./models/autoencoder_model") -> None:
+    def __init__(self, latent_dim=64, channels=1, force_learn: bool = False, file_name: str = "./models/autoencoder_model") -> None:
         self.force_relearn = force_learn
         self.file_name = file_name
+
+        inputs = keras.Input(shape=(28, 28, None))
 
         self.encoder = Sequential()
         self.encoder.add(Flatten())
@@ -20,15 +22,20 @@ class AutoEncoder():
         self.decoder = Sequential()
         self.decoder.add(Dense(latent_dim, activation="relu"))
         self.decoder.add(Dense(784, activation="sigmoid"))
-        self.decoder.add(Reshape((28, 28)))
+        self.decoder.add(Reshape((28, 28, 1)))
 
-        self.model = Sequential()
-        self.model.add(self.encoder)
-        self.model.add(self.decoder)
+        outputs = []
+        for c in range(channels):
+            outputs.append(self.decoder(self.encoder(inputs[:, :, :, c])))
+        outputs = keras.layers.concatenate(outputs)
+
+        self.model = keras.Model(inputs=inputs, outputs=outputs)
         self.model.compile(loss=keras.losses.binary_crossentropy,
                            optimizer=keras.optimizers.Adam(lr=.01),
                            metrics=["accuracy"])
-        
+
+        keras.utils.plot_model(self.model, to_file="autoencoder_model.png", show_shapes=True)
+
         self.done_training = self.load_weights()
 
     def load_weights(self):
@@ -48,9 +55,6 @@ class AutoEncoder():
             x_train, _ = generator.get_full_data_set(training=True)
             x_test, _ = generator.get_full_data_set(training=False)
 
-            x_train = x_train[:, :, :, 0]
-            x_test = x_test[:, :, :, 0]
-
             log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
             tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
@@ -63,48 +67,42 @@ class AutoEncoder():
         return self.done_training
 
 
-def plot(original, reconstructed, labels, channels=1) -> None:
+def plot(original, reconstructed, labels) -> None:
     no_cols = original.shape[0]
+    no_channels = original.shape[-1]
     images = np.concatenate((original, reconstructed), axis=1)
     plt.Figure()
     for i in range(no_cols):
         plt.subplot(2, no_cols // 2, i + 1)
-        if channels == 1:
+        if no_channels == 1:
             plt.imshow(images[i, :, :], cmap="binary")
         else:
-            plt.imshow(images[i, :, :].astype(np.float))
+            plt.imshow(images[i, :, :].astype(float))
         plt.xticks([])
         plt.yticks([])
-        plt.title(str(labels[i]).zfill(channels))
+        plt.title(str(labels[i]).zfill(no_channels))
 
     plt.show()
 
 
 if __name__ == "__main__":
-    gen = StackedMNISTData(mode=DataMode.MONO_BINARY_COMPLETE, default_batch_size=2048)
+    gen = StackedMNISTData(mode=DataMode.COLOR_BINARY_COMPLETE, default_batch_size=2048)
 
     verifier = VerificationNet(force_learn=False)
     verifier.train(generator=gen, epochs=5)
 
-    ae = AutoEncoder(force_learn=False)
+    ae = AutoEncoder(force_learn=False, channels=3)
     ae.train(generator=gen, epochs=10)
 
     x_test, y_test = gen.get_full_data_set(training=False)
     x_reconstructed = ae.model(x_test)
-    x_reconstructed = np.expand_dims(x_reconstructed, axis=-1)
-
-    print(x_test.shape)
-    print(x_reconstructed.shape)
 
     cov = verifier.check_class_coverage(data=x_reconstructed, tolerance=.98)
     pred, acc = verifier.check_predictability(data=x_reconstructed, correct_labels=y_test)
-    print(f"Coverage: {100*cov:.2f}%")
-    print(f"Predictability: {100*pred:.2f}%")
+    print(f"Coverage: {100 * cov:.2f}%")
+    print(f"Predictability: {100 * pred:.2f}%")
     print(f"Accuracy: {100 * acc:.2f}%")
 
     x_test, y_test = gen.get_random_batch(training=False, batch_size=10)
-    x_test = x_test[:, :, :, 0]
-
     x_reconstructed = ae.model(x_test)
-    
     plot(x_test, x_reconstructed, y_test)
