@@ -66,8 +66,14 @@ class AutoEncoder():
 
         return self.done_training
 
+    def decode(self, x: np.ndarray) -> np.ndarray:
+        y = np.zeros(shape=(x.shape[0], 28, 28, x.shape[-1]))
+        for c in range(x.shape[-1]):
+            y[:, :, :, c] = self.decoder.predict(x[:, :, c])[:, :, :, 0]
+        return y
 
-def plot(original, reconstructed, labels) -> None:
+
+def comparison_plot(original, reconstructed, labels) -> None:
     no_cols = original.shape[0]
     no_channels = original.shape[-1]
     images = np.concatenate((original, reconstructed), axis=1)
@@ -81,6 +87,23 @@ def plot(original, reconstructed, labels) -> None:
         plt.xticks([])
         plt.yticks([])
         plt.title(str(labels[i]).zfill(no_channels))
+
+    plt.show()
+
+
+def plot(images) -> None:
+    no_cols = int(np.ceil(np.sqrt(images.shape[0])))
+    no_lines = int(np.sqrt(images.shape[0]))
+    no_channels = images.shape[-1]
+    plt.Figure()
+    for i in range(len(images)):
+        plt.subplot(no_lines, no_cols, i + 1)
+        if no_channels == 1:
+            plt.imshow(images[i, :, :], cmap="binary")
+        else:
+            plt.imshow(images[i, :, :].astype(float))
+        plt.xticks([])
+        plt.yticks([])
 
     plt.show()
 
@@ -105,4 +128,8 @@ if __name__ == "__main__":
 
     x_test, y_test = gen.get_random_batch(training=False, batch_size=10)
     x_reconstructed = ae.model(x_test)
-    plot(x_test, x_reconstructed, y_test)
+    comparison_plot(x_test, x_reconstructed, y_test)
+
+    random = np.random.randn(20, 64, 3)
+    x_reconstructed = ae.decode(random)
+    plot(x_reconstructed)
