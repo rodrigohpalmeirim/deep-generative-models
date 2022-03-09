@@ -17,10 +17,12 @@ class AutoEncoder():
 
         self.encoder = Sequential()
         self.encoder.add(Flatten())
+        self.encoder.add(Dense(256, activation="relu"))
         self.encoder.add(Dense(latent_dim, activation="relu"))
 
         self.decoder = Sequential()
         self.decoder.add(Dense(latent_dim, activation="relu"))
+        self.encoder.add(Dense(256, activation="relu"))
         self.decoder.add(Dense(784, activation="sigmoid"))
         self.decoder.add(Reshape((28, 28, 1)))
 
@@ -109,14 +111,25 @@ def plot(images) -> None:
 
 
 if __name__ == "__main__":
-    gen = StackedMNISTData(mode=DataMode.COLOR_BINARY_COMPLETE, default_batch_size=2048)
+    gen = StackedMNISTData(mode=DataMode.MONO_BINARY_MISSING, default_batch_size=2048)
 
     verifier = VerificationNet(force_learn=False)
     verifier.train(generator=gen, epochs=5)
 
-    ae = AutoEncoder(force_learn=False, channels=3)
+    ae = AutoEncoder(force_learn=False, channels=1)
     ae.train(generator=gen, epochs=10)
 
+    # Show some examples
+    x_test, y_test = gen.get_random_batch(training=False, batch_size=10)
+    x_reconstructed = ae.model(x_test)
+    comparison_plot(x_test, x_reconstructed, y_test)
+
+    # Generate images from noise
+    random = np.random.randn(20, 64, 3)
+    x_reconstructed = ae.decode(random)
+    plot(x_reconstructed)
+
+    # Evaluate performance
     x_test, y_test = gen.get_full_data_set(training=False)
     x_reconstructed = ae.model(x_test)
 
@@ -126,10 +139,15 @@ if __name__ == "__main__":
     print(f"Predictability: {100 * pred:.2f}%")
     print(f"Accuracy: {100 * acc:.2f}%")
 
-    x_test, y_test = gen.get_random_batch(training=False, batch_size=10)
-    x_reconstructed = ae.model(x_test)
-    comparison_plot(x_test, x_reconstructed, y_test)
+    # Show most anomalous images
+    bce = keras.losses.BinaryCrossentropy(from_logits=True)
+    losses = []
+    for i in range(x_test.shape[0]):
+        loss = bce(y_true=x_test[i], y_pred=x_reconstructed[i])
+        losses.append((loss, x_test[i], x_reconstructed[i], y_test[i]))
 
-    random = np.random.randn(20, 64, 3)
-    x_reconstructed = ae.decode(random)
-    plot(x_reconstructed)
+    losses = sorted(losses, key=lambda x: x[0], reverse=True)
+    x_reconstructed = np.array([x[2] for x in losses[:10]])
+    x_test = np.array([x[1] for x in losses[:10]])
+    y_test = np.array([x[3] for x in losses[:10]])
+    comparison_plot(x_test, x_reconstructed, y_test)
