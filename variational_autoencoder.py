@@ -123,12 +123,12 @@ if __name__ == "__main__":
     # Show some examples
     x_test, y_test = gen.get_random_batch(training=False, batch_size=10)
     x_reconstructed = vae(x_test)
-    comparison_plot(x_test, x_reconstructed, y_test)
+    comparison_plot(x_test, x_reconstructed, y_test, title="Reconstruction")
 
     # Generate images from noise
     random = np.random.randn(20, vae.latent_dim, vae.channels)
     r_reconstructed = vae.decode(random)
-    plot(r_reconstructed)
+    plot(r_reconstructed, title="Generation from Random Samples")
 
     # Evaluate reconstruction performance
     x_test, y_test = gen.get_full_data_set(training=False)
@@ -162,4 +162,4 @@ if __name__ == "__main__":
     x_reconstructed = np.array([x[2] for x in losses[:10]])
     x_test = np.array([x[1] for x in losses[:10]])
     y_test = np.array([x[3] for x in losses[:10]])
-    comparison_plot(x_test, x_reconstructed, y_test, block=True)
+    comparison_plot(x_test, x_reconstructed, y_test, title="Most Anomalous Images", block=True)

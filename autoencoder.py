@@ -75,11 +75,12 @@ class AutoEncoder(Model):
         return y
 
 
-def comparison_plot(original, reconstructed, labels, block=False) -> None:
+def comparison_plot(original, reconstructed, labels, title="", block=False) -> None:
     no_cols = original.shape[0]
     no_channels = original.shape[-1]
     images = np.concatenate((original, reconstructed), axis=1)
     plt.figure()
+    plt.suptitle(title)
     for i in range(no_cols):
         plt.subplot(2, no_cols // 2, i + 1)
         if no_channels == 1:
@@ -93,11 +94,12 @@ def comparison_plot(original, reconstructed, labels, block=False) -> None:
     plt.pause(0.1)
 
 
-def plot(images, block=False) -> None:
+def plot(images, title="", block=False) -> None:
     no_cols = int(np.ceil(np.sqrt(images.shape[0])))
     no_lines = int(np.sqrt(images.shape[0]))
     no_channels = images.shape[-1]
     plt.figure()
+    plt.suptitle(title)
     for i in range(len(images)):
         plt.subplot(no_lines, no_cols, i + 1)
         if no_channels == 1:
@@ -122,12 +124,12 @@ if __name__ == "__main__":
     # Show some examples
     x_test, y_test = gen.get_random_batch(training=False, batch_size=10)
     x_reconstructed = ae(x_test)
-    comparison_plot(x_test, x_reconstructed, y_test)
+    comparison_plot(x_test, x_reconstructed, y_test, title="Reconstruction")
 
     # Generate images from noise
     random = np.random.randn(20, ae.latent_dim, ae.channels)
     r_reconstructed = ae.decode(random)
-    plot(r_reconstructed)
+    plot(r_reconstructed, title="Generation from Random Samples")
 
     # Evaluate reconstruction performance
     x_test, y_test = gen.get_full_data_set(training=False)
@@ -161,4 +163,4 @@ if __name__ == "__main__":
     x_reconstructed = np.array([x[2] for x in losses[:10]])
     x_test = np.array([x[1] for x in losses[:10]])
     y_test = np.array([x[3] for x in losses[:10]])
-    comparison_plot(x_test, x_reconstructed, y_test, block=True)
+    comparison_plot(x_test, x_reconstructed, y_test, title="Most Anomalous Images", block=True)
