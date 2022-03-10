@@ -1,2 +1,2 @@
-model_checkpoint_path: "autoencoder_model"
-all_model_checkpoint_paths: "autoencoder_model"
+model_checkpoint_path: "color_variational_autoencoder_model"
+all_model_checkpoint_paths: "color_variational_autoencoder_model"

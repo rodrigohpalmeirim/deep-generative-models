@@ -3,17 +3,18 @@ import numpy as np
 import datetime
 from tensorflow import keras
 from tensorflow.keras.layers import Dense, Flatten, Reshape
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Model, Sequential
 from stacked_mnist import DataMode, StackedMNISTData
 from verification_net import VerificationNet
 
 
-class AutoEncoder():
+class AutoEncoder(Model):
     def __init__(self, latent_dim=64, channels=1, force_learn: bool = False, file_name: str = "./models/autoencoder_model") -> None:
+        super(AutoEncoder, self).__init__()
+
+        self.channels = channels
         self.force_relearn = force_learn
         self.file_name = file_name
-
-        inputs = keras.Input(shape=(28, 28, None))
 
         self.encoder = Sequential()
         self.encoder.add(Flatten())
@@ -21,28 +22,26 @@ class AutoEncoder():
         self.encoder.add(Dense(latent_dim, activation="relu"))
 
         self.decoder = Sequential()
-        self.decoder.add(Dense(latent_dim, activation="relu"))
-        self.encoder.add(Dense(256, activation="relu"))
+        self.decoder.add(Dense(256, activation="relu"))
         self.decoder.add(Dense(784, activation="sigmoid"))
         self.decoder.add(Reshape((28, 28, 1)))
 
+        self.compile(loss=keras.losses.binary_crossentropy,
+                     optimizer=keras.optimizers.Adam(lr=.01),
+                     metrics=["accuracy"])
+
+        self.done_training = self.load()
+
+    def call(self, inputs: np.ndarray) -> np.ndarray:
         outputs = []
-        for c in range(channels):
+        for c in range(self.channels):
             outputs.append(self.decoder(self.encoder(inputs[:, :, :, c])))
         outputs = keras.layers.concatenate(outputs)
+        return outputs
 
-        self.model = keras.Model(inputs=inputs, outputs=outputs)
-        self.model.compile(loss=keras.losses.binary_crossentropy,
-                           optimizer=keras.optimizers.Adam(lr=.01),
-                           metrics=["accuracy"])
-
-        keras.utils.plot_model(self.model, to_file="autoencoder_model.png", show_shapes=True)
-
-        self.done_training = self.load_weights()
-
-    def load_weights(self):
+    def load(self):
         try:
-            self.model.load_weights(filepath=self.file_name)
+            self.load_weights(filepath=self.file_name)
             done_training = True
         except Exception:
             print("Could not read weights for autoencoder_model from file. Must retrain...")
@@ -50,8 +49,8 @@ class AutoEncoder():
 
         return done_training
 
-    def train(self, generator: StackedMNISTData, epochs: np.int = 10) -> bool:
-        self.done_training = self.load_weights()
+    def train(self, generator: StackedMNISTData, epochs: int = 10) -> bool:
+        self.done_training = self.load()
 
         if self.force_relearn or self.done_training is False:
             x_train, _ = generator.get_full_data_set(training=True)
@@ -60,10 +59,10 @@ class AutoEncoder():
             log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
             tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-            self.model.fit(x=x_train, y=x_train, batch_size=1024, epochs=epochs,
-                           validation_data=(x_test, x_test), callbacks=[tensorboard_callback])
+            self.fit(x=x_train, y=x_train, batch_size=1024, epochs=epochs,
+                     validation_data=(x_test, x_test), callbacks=[tensorboard_callback])
 
-            self.model.save_weights(filepath=self.file_name)
+            self.save_weights(filepath=self.file_name)
             self.done_training = True
 
         return self.done_training
@@ -71,15 +70,15 @@ class AutoEncoder():
     def decode(self, x: np.ndarray) -> np.ndarray:
         y = np.zeros(shape=(x.shape[0], 28, 28, x.shape[-1]))
         for c in range(x.shape[-1]):
-            y[:, :, :, c] = self.decoder.predict(x[:, :, c])[:, :, :, 0]
+            y[:, :, :, c] = self.decoder(x[:, :, c])[:, :, :, 0]
         return y
 
 
-def comparison_plot(original, reconstructed, labels) -> None:
+def comparison_plot(original, reconstructed, labels, block=False) -> None:
     no_cols = original.shape[0]
     no_channels = original.shape[-1]
     images = np.concatenate((original, reconstructed), axis=1)
-    plt.Figure()
+    plt.figure()
     for i in range(no_cols):
         plt.subplot(2, no_cols // 2, i + 1)
         if no_channels == 1:
@@ -89,15 +88,15 @@ def comparison_plot(original, reconstructed, labels) -> None:
         plt.xticks([])
         plt.yticks([])
         plt.title(str(labels[i]).zfill(no_channels))
+    plt.show(block=block)
+    plt.pause(0.1)
 
-    plt.show()
 
-
-def plot(images) -> None:
+def plot(images, block=False) -> None:
     no_cols = int(np.ceil(np.sqrt(images.shape[0])))
     no_lines = int(np.sqrt(images.shape[0]))
     no_channels = images.shape[-1]
-    plt.Figure()
+    plt.figure()
     for i in range(len(images)):
         plt.subplot(no_lines, no_cols, i + 1)
         if no_channels == 1:
@@ -106,22 +105,22 @@ def plot(images) -> None:
             plt.imshow(images[i, :, :].astype(float))
         plt.xticks([])
         plt.yticks([])
-
-    plt.show()
+    plt.show(block=block)
+    plt.pause(0.1)
 
 
 if __name__ == "__main__":
-    gen = StackedMNISTData(mode=DataMode.MONO_BINARY_MISSING, default_batch_size=2048)
+    gen = StackedMNISTData(mode=DataMode.COLOR_BINARY_MISSING, default_batch_size=2048)
 
     verifier = VerificationNet(force_learn=False)
     verifier.train(generator=gen, epochs=5)
 
-    ae = AutoEncoder(force_learn=False, channels=1)
+    ae = AutoEncoder(force_learn=False, channels=3, file_name="./models/ae_missing_model")
     ae.train(generator=gen, epochs=10)
 
     # Show some examples
     x_test, y_test = gen.get_random_batch(training=False, batch_size=10)
-    x_reconstructed = ae.model(x_test)
+    x_reconstructed = ae(x_test)
     comparison_plot(x_test, x_reconstructed, y_test)
 
     # Generate images from noise
@@ -131,8 +130,9 @@ if __name__ == "__main__":
 
     # Evaluate performance
     x_test, y_test = gen.get_full_data_set(training=False)
-    x_reconstructed = ae.model(x_test)
+    x_reconstructed = ae(x_test)
 
+    print("\nEvaluating performance...")
     cov = verifier.check_class_coverage(data=x_reconstructed, tolerance=.98)
     pred, acc = verifier.check_predictability(data=x_reconstructed, correct_labels=y_test)
     print(f"Coverage: {100 * cov:.2f}%")
@@ -150,4 +150,4 @@ if __name__ == "__main__":
     x_reconstructed = np.array([x[2] for x in losses[:10]])
     x_test = np.array([x[1] for x in losses[:10]])
     y_test = np.array([x[3] for x in losses[:10]])
-    comparison_plot(x_test, x_reconstructed, y_test)
+    comparison_plot(x_test, x_reconstructed, y_test, block=True)
