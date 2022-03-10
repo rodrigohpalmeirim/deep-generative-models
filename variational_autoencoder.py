@@ -26,10 +26,6 @@ class VariationalAutoEncoder(AutoEncoder):
         self.force_relearn = force_learn
         self.file_name = file_name
 
-        self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
-        self.reconstruction_loss_tracker = keras.metrics.Mean(name="reconstruction_loss")
-        self.kl_loss_tracker = keras.metrics.Mean(name="kl_loss")
-
         encoder_inputs = keras.Input(shape=(28, 28, 1))
         x = Flatten()(encoder_inputs)
         x = Dense(256, activation="relu")(x)
@@ -47,14 +43,6 @@ class VariationalAutoEncoder(AutoEncoder):
         self.compile(optimizer=keras.optimizers.Adam())
 
         self.done_training = self.load()
-
-    @property
-    def metrics(self):
-        return [
-            self.total_loss_tracker,
-            self.reconstruction_loss_tracker,
-            self.kl_loss_tracker,
-        ]
 
     def train_step(self, data):
         for c in range(self.channels):
@@ -75,14 +63,7 @@ class VariationalAutoEncoder(AutoEncoder):
             gradient = tape.gradient(total_loss, self.trainable_weights)
             self.optimizer.apply_gradients(zip(gradient, self.trainable_weights))
 
-            self.kl_loss_tracker.update_state(kl_loss)
-            self.reconstruction_loss_tracker.update_state(reconstruction_loss)
-            self.total_loss_tracker.update_state(total_loss)
-            return {
-                "loss": self.total_loss_tracker.result(),
-                "reconstruction_loss": self.reconstruction_loss_tracker.result(),
-                "kl_loss": self.kl_loss_tracker.result(),
-            }
+        return {"loss": kl_loss, "reconstruction_loss": reconstruction_loss, "kl_loss": kl_loss}
 
     def train(self, generator: StackedMNISTData, epochs: int = 10) -> bool:
         self.done_training = self.load()
