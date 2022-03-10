@@ -21,6 +21,7 @@ class VariationalAutoEncoder(AutoEncoder):
     def __init__(self, latent_dim=16, channels=1, force_learn: bool = False, file_name: str = "./models/variational_autoencoder_model") -> None:
         super(AutoEncoder, self).__init__()
 
+        self.latent_dim = latent_dim
         self.channels = channels
         self.force_relearn = force_learn
         self.file_name = file_name
@@ -106,7 +107,6 @@ class VariationalAutoEncoder(AutoEncoder):
         for c in range(self.channels):
             z_mean, z_log_var, z = self.encoder(inputs[:, :, :, c])
             outputs.append(self.decoder(z))
-        print(outputs)
         outputs = keras.layers.concatenate(outputs)
         return outputs
 
@@ -126,20 +126,30 @@ if __name__ == "__main__":
     comparison_plot(x_test, x_reconstructed, y_test)
 
     # Generate images from noise
-    random = np.random.randn(20, 16, 3)
-    x_reconstructed = vae.decode(random)
-    plot(x_reconstructed)
+    random = np.random.randn(20, vae.latent_dim, vae.channels)
+    r_reconstructed = vae.decode(random)
+    plot(r_reconstructed)
 
-    # Evaluate performance
+    # Evaluate reconstruction performance
     x_test, y_test = gen.get_full_data_set(training=False)
     x_reconstructed = vae.predict(x_test)
 
-    print("\nEvaluating performance...")
+    print("\nEvaluating reconstruction performance...")
     cov = verifier.check_class_coverage(data=x_reconstructed, tolerance=.98)
     pred, acc = verifier.check_predictability(data=x_reconstructed, correct_labels=y_test)
     print(f"Coverage: {100 * cov:.2f}%")
     print(f"Predictability: {100 * pred:.2f}%")
     print(f"Accuracy: {100 * acc:.2f}%")
+
+    # Evaluate generative performance
+    random = np.random.randn(10000, vae.latent_dim, vae.channels)
+    r_reconstructed = vae.decode(random)
+
+    print("\nEvaluating generative performance...")
+    cov = verifier.check_class_coverage(data=r_reconstructed, tolerance=.98)
+    pred, _ = verifier.check_predictability(data=r_reconstructed, correct_labels=y_test)
+    print(f"Coverage: {100 * cov:.2f}%")
+    print(f"Predictability: {100 * pred:.2f}%")
 
     # Show most anomalous images
     bce = keras.losses.BinaryCrossentropy(from_logits=True)
