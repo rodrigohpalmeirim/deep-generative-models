@@ -63,7 +63,7 @@ class VariationalAutoEncoder(AutoEncoder):
             gradient = tape.gradient(total_loss, self.trainable_weights)
             self.optimizer.apply_gradients(zip(gradient, self.trainable_weights))
 
-        return {"loss": kl_loss, "reconstruction_loss": reconstruction_loss, "kl_loss": kl_loss}
+        return {"loss": total_loss, "reconstruction_loss": reconstruction_loss, "kl_loss": kl_loss}
 
     def train(self, generator: StackedMNISTData, epochs: int = 10) -> bool:
         self.done_training = self.load()
